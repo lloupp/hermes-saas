@@ -1,4 +1,4 @@
-"""SOULs routes — manage SOUL.md files (templates, company, personal)."""
+"""SOUL routes — templates globais, da empresa, pessoais."""
 
 from uuid import uuid4, UUID
 from typing import Optional
@@ -18,7 +18,8 @@ router = APIRouter(prefix="/souls", tags=["souls"])
 class SoulCreate(BaseModel):
     name: str
     content: str
-    scope: str = "personal"
+    scope: str = "personal"  # 'personal' or 'company'
+
 
 class SoulOut(BaseModel):
     id: UUID
@@ -31,8 +32,8 @@ class SoulOut(BaseModel):
 
 
 @router.get("/templates", response_model=list[SoulOut])
-async def list_soul_templates(db: AsyncSession = Depends(get_db)):
-    """List global SOUL templates."""
+async def list_templates(db: AsyncSession = Depends(get_db)):
+    """Global SOUL templates."""
     result = await db.execute(select(SoulTemplate))
     templates = result.scalars().all()
     return [
@@ -46,7 +47,6 @@ async def list_company_souls(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """List company-level SOULs."""
     result = await db.execute(
         select(Soul).where(Soul.company_id == current_user["company_id"], Soul.scope == "company")
     )
@@ -58,7 +58,6 @@ async def list_my_souls(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """List current user's personal SOULs."""
     result = await db.execute(
         select(Soul).where(Soul.user_id == current_user["user_id"], Soul.scope == "personal")
     )
@@ -71,13 +70,17 @@ async def create_soul(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
+    scope = data.scope
+    if scope == "company" and current_user["role"] not in ("company_admin", "super_admin"):
+        raise HTTPException(403, "Apenas admins da empresa podem criar SOULs de empresa")
+
     soul = Soul(
         id=uuid4(),
-        company_id=current_user["company_id"] if data.scope in ("company", "personal") else None,
-        user_id=current_user["user_id"] if data.scope == "personal" else None,
+        company_id=current_user["company_id"] if scope in ("company", "personal") else None,
+        user_id=current_user["user_id"] if scope == "personal" else None,
         name=data.name,
         content=data.content,
-        scope=data.scope,
+        scope=scope,
     )
     db.add(soul)
     await db.commit()
@@ -88,8 +91,7 @@ async def create_soul(
 @router.patch("/{soul_id}", response_model=SoulOut)
 async def update_soul(
     soul_id: UUID,
-    content: str,
-    name: Optional[str] = None,
+    data: SoulCreate,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -97,9 +99,14 @@ async def update_soul(
     soul = result.scalar()
     if not soul:
         raise HTTPException(404, "SOUL não encontrado")
-    soul.content = content
-    if name:
-        soul.name = name
+
+    if soul.scope == "personal" and str(soul.user_id) != current_user["user_id"]:
+        raise HTTPException(403, "Sem permissão")
+    if soul.scope == "company" and current_user["role"] not in ("company_admin", "super_admin"):
+        raise HTTPException(403, "Sem permissão")
+
+    soul.name = data.name
+    soul.content = data.content
     await db.commit()
     await db.refresh(soul)
     return soul
@@ -115,5 +122,11 @@ async def delete_soul(
     soul = result.scalar()
     if not soul:
         raise HTTPException(404, "SOUL não encontrado")
+
+    if soul.scope == "personal" and str(soul.user_id) != current_user["user_id"]:
+        raise HTTPException(403, "Sem permissão")
+    if soul.scope == "company" and current_user["role"] not in ("company_admin", "super_admin"):
+        raise HTTPException(403, "Sem permissão")
+
     await db.delete(soul)
     await db.commit()
