@@ -17,22 +17,56 @@ Plataforma SaaS onde empresas se cadastram, adicionam funcionários, e cada func
 ## 🏗️ Arquitetura
 
 ```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│  Chat Web    │────▶│  FastAPI     │────▶│  OpenRouter  │
-│  Next.js     │     │  (multi-      │     │  (LLM)       │
-│              │     │   tenant)    │     └──────────────┘
-└──────────────┘     └──────┬───────┘            ▲
-                            │                    │
-                            ▼                    │
-                     ┌──────────────┐            │
-                     │  PostgreSQL  │            │
-                     │  + RLS       │            │
-                     └──────────────┘            │
-                                                 │
-   Admin Da Empresa define key OpenRouter ──────┘
-   que controla qual modelo é chamado e quanto
-   cada empresa pode gastar
+┌──────────────┐     ┌──────────────┐     ┌─────────────────────┐
+│  Chat Web    │────▶│  FastAPI     │────▶│  Hermes Agent CLI   │
+│  Next.js     │     │  (multi-      │     │  (1 por profile,    │
+│              │◀────│   tenant)    │◀────│   via PTY em tmux   │
+└──────────────┘     └──────┬───────┘     │   / PTY logger)     │
+                            │             └──────────┬──────────┘
+                            │                        │
+                     ┌──────▼───────┐                │
+                     │  PostgreSQL  │                │
+                     │  + RLS       │                │
+                     └──────────────┘                │
+                                                      │
+   Admin Da Empresa define key OpenRouter ───────────▼──────┐
+   que alimenta ~/.hermes-saas/profiles/<co>/<p>/.env      │
+   que cada Hermes process carrega ao iniciar            ▼
+                                                   ┌──────────────┐
+                                                   │  OpenRouter  │
+                                                   │  (200+ LLMs)  │
+                                                   └──────────────┘
+
+
+### Hermes Agent se encaixa na Opção A
+
+Cada profile roda uma instância REAL do Hermes Agent isolada:
+
+  ~/.hermes-saas/profiles/<company-id>/<profile-id>/
+    ├── config.yaml      -- agent config (model, max_turns, ...)
+    ├── SOUL.md          -- system prompt do agente
+    ├── skills/          -- SKILL.md customizados
+    ├── .env             -- OPENROUTER_API_KEY da empresa
+    ├── sessions/        -- SQLite do Hermes (histórico persistente)
+    └── stdout.log       -- tail em tempo real pro chat streaming
+
+Quando usuário manda msg no chat:
+  1. Backend carrega config do DB
+  2. Materializa arquivos no disco (SOUL.md, skills/, config.yaml)
+  3. Faz `pty.fork` + `execvp("hermes chat ...")` com a OpenRouter key
+  4. Escreve msg no stdin do PTY
+  5. Faz tail em stdout.log pra pegar resposta em tempo real
+  6. SSE-streaming pro frontend
 ```
+
+## ✨ Benefícios da Opção A
+
+- **Memória persistente** entre sessões (Hermes Agent já tem memory cross-session)
+- **Skills verificadas** pelo Hermes (tool calling nativo)
+- **Sessões por profile** no SQLite próprio — recomeça de onde parou
+- **Isolamento real** entre empresas (cada uma com suas skills, sessions, memory)
+- **Possível attach manual**: cada profile = um tmux session (se quiser)
+- **Skills customizadas**: persistem em disco, sobrevive a restart
 
 ## 📁 Estrutura
 

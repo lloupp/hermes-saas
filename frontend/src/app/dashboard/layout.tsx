@@ -11,6 +11,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <a href="/dashboard/clients" className="block px-3 py-2 rounded hover:bg-gray-100">👥 Clientes</a>
           <a href="/dashboard/users" className="block px-3 py-2 rounded hover:bg-gray-100">👤 Funcionários</a>
           <a href="/dashboard/chat" className="block px-3 py-2 rounded hover:bg-gray-100">💬 Chat</a>
+          <div className="border-t mt-4 pt-4">
+            <a href="/dashboard/settings" className="block px-3 py-2 rounded hover:bg-gray-100">⚙️ Configurações</a>
+          </div>
         </nav>
       </aside>
       <main className="flex-1 p-8">{children}</main>

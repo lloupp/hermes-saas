@@ -1,1 +1,1 @@
-from app.models.models import Company, User, Soul, SoulTemplate, Skill, SkillTemplate, Profile, ProfileSkill, Client, Interaction, BudgetUsage, Plan
+from app.models.models import Company, User, Soul, SoulTemplate, Skill, SkillTemplate, Profile, ProfileSkill, Client, Interaction, BudgetUsage, Plan  # noqa: F401

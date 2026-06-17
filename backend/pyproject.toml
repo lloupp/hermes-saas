@@ -17,7 +17,17 @@ dependencies = [
     "redis>=5.2.0",
     "python-multipart>=0.0.18",
     "sse-starlette>=2.2.0",
+    "asyncio-mqtt>=0.16.0",
 ]
+
+[project.scripts]
+hermes-saas = "main:app"
+
+[tool.hermes-saas]
+# Path to hermes CLI binary (must be installed on the host)
+hermes-binary = "/home/ubuntu/.local/bin/hermes"
+# Base directory for profile state per company
+profiles-root = "~/.hermes-saas/profiles"
 
 [project.optional-dependencies]
 dev = [
